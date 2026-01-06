@@ -273,12 +273,31 @@ st.markdown("""
 def main():
     # Header
     st.markdown('<h1 class="main-header">🎯 100 Days to Hireable Tracker</h1>', unsafe_allow_html=True)
-    st.markdown("### Data Engineer | Music Producer | Faith Leader")
+    st.markdown("### Data Engineer | Music Producer | Full Stack Developer")
+
+    # Social links
+    col1, col2, col3 = st.columns([1, 1, 2])
+    with col1:
+        st.markdown("[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/jeffandy/)")
+    with col2:
+        st.markdown("[![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtube.com/playlist?list=PLQjGOmN1hO_lLIiEqIUR2SiACnGt3V59G&si=uulsP6Kxux7h0q7F)")
     
+    st.markdown("---")
+    
+    # Embedded YouTube video
+    st.markdown("## 🎥 100 Days Journey")
+    st.markdown("""
+    <iframe width="100%" height="400" 
+    src="https://www.youtube.com/embed/I448nR-uGqc?si=GwIl0J8n44d98P-_" 
+    title="YouTube video player" frameborder="0" 
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+    referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+
     # Sidebar
     with st.sidebar:
-        st.image("https://via.placeholder.com/150?text=KungFu+Fandy", width=150)
-        st.markdown("---")
         st.markdown("### 📊 Dashboard Controls")
         
         refresh_button = st.button("🔄 Refresh Data", use_container_width=True)
@@ -484,7 +503,7 @@ def main():
         
         fig.update_layout(
             barmode='stack',
-            title="Weekly Time Distribution (100 Days Challenge)",
+            title="Weekly Time Distribution (CT: Coding Time, VT: Video Time)",
             xaxis_title="Week",
             yaxis_title="Hours",
             height=400,
@@ -730,7 +749,7 @@ def main():
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: #666;'>
-        <p>Built with ❤️ by KungFu Fandy | Data Engineer in Training</p>
+        <p>Built by KungFu Fandy | Data Engineer on the come up</p>
         <p>🙏 Agree In Prayer (AIP) - Daily 12:15-12:45 PM EST</p>
     </div>
     """, unsafe_allow_html=True)
