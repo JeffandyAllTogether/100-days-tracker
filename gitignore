@@ -1,0 +1,35 @@
+# Secrets and credentials
+.streamlit/secrets.toml
+.env
+*.pem
+*.key
+
+# Data files  
+*.csv
+harvest_time_report.csv
+outputs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
