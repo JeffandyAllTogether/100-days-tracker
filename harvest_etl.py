@@ -499,7 +499,7 @@ def main():
     print("="*60)
     
     # Configuration
-    HARVEST_CSV_PATH = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker_v2/harvest_time_report.csv'
+    HARVEST_CSV_PATH = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/harvest_time_report.csv'
     
     # PostgreSQL configuration
     # Uses environment variables for deployment, with local fallback
@@ -525,7 +525,7 @@ def main():
     df = parse_harvest_csv(HARVEST_CSV_PATH)
     
     # Save transformed CSV for inspection
-    output_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker_v2/outputs/harvest_transformed.csv'
+    output_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/harvest_transformed.csv'
     df.to_csv(output_csv, index=False)
     print(f"\n✅ Transformed CSV saved to: {output_csv}")
     
@@ -538,7 +538,7 @@ def main():
     
     # Weekly CT:VT summary
     weekly_summary = generate_weekly_summary(df)
-    weekly_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker_v2/outputs/weekly_summary.csv'
+    weekly_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/weekly_summary.csv'
     weekly_summary.to_csv(weekly_csv, index=False)
     print(f"\n📊 Weekly Summary (last 5 weeks):")
     print(weekly_summary.tail(5).to_string(index=False))
@@ -547,14 +547,14 @@ def main():
     # CT breakdown by category
     ct_category, ct_type = generate_ct_breakdown(df)
     if len(ct_category) > 0:
-        ct_cat_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker_v2/outputs/ct_category_breakdown.csv'
+        ct_cat_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/ct_category_breakdown.csv'
         ct_category.to_csv(ct_cat_csv, index=False)
         print(f"\n📊 CT Category Breakdown (last 5 weeks):")
         print(ct_category.tail(10).to_string(index=False))
         print(f"\n✅ Saved to: {ct_cat_csv}")
     
     if len(ct_type) > 0:
-        ct_type_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker_v2/outputs/ct_type_breakdown.csv'
+        ct_type_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/ct_type_breakdown.csv'
         ct_type.to_csv(ct_type_csv, index=False)
         print(f"\n📊 Deep Dive vs Shipping Breakdown (post 12/31):")
         print(ct_type.to_string(index=False))
@@ -563,7 +563,7 @@ def main():
     # VT breakdown
     vt_category = generate_vt_breakdown(df)
     if len(vt_category) > 0:
-        vt_cat_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker_v2/outputs/vt_category_breakdown.csv'
+        vt_cat_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/vt_category_breakdown.csv'
         vt_category.to_csv(vt_cat_csv, index=False)
         print(f"\n🎥 VT Category Breakdown (last 5 weeks):")
         print(vt_category.tail(10).to_string(index=False))
@@ -572,7 +572,7 @@ def main():
     # 100 Days progress
     progress_100days = generate_100_days_progress(df)
     if len(progress_100days) > 0:
-        progress_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker_v2/outputs/100_days_progress.csv'
+        progress_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/100_days_progress.csv'
         progress_100days.to_csv(progress_csv, index=False)
         print(f"\n🎯 100 Days to Hireable Progress:")
         print(progress_100days.tail(10).to_string(index=False))
