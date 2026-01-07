@@ -499,13 +499,12 @@ def main():
     print("="*60)
     
     # Configuration
-    # Using a relative path that works both locally and in Github
+    # Use relative path that works both locally and in GitHub Actions
     import os
     HARVEST_CSV_PATH = os.path.join(os.path.dirname(__file__), 'harvest_time_report.csv')
     
     # PostgreSQL configuration
     # Uses environment variables for deployment, with local fallback
-    import os
     
     DB_CONFIG = {
         'dbname': os.getenv('DB_NAME', 'harvest_tracker'),
@@ -526,10 +525,23 @@ def main():
     
     df = parse_harvest_csv(HARVEST_CSV_PATH)
     
-    # Save transformed CSV for inspection
-    output_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/harvest_transformed.csv'
-    df.to_csv(output_csv, index=False)
-    print(f"\n✅ Transformed CSV saved to: {output_csv}")
+    # Save transformed CSV for inspection (optional - only if outputs dir exists or can be created)
+    script_dir = os.path.dirname(__file__)
+    outputs_dir = os.path.join(script_dir, 'outputs')
+    
+    # Create outputs directory if it doesn't exist (for local use)
+    try:
+        os.makedirs(outputs_dir, exist_ok=True)
+        save_outputs = True
+    except:
+        # If we can't create outputs (like in GitHub Actions), skip saving CSVs
+        save_outputs = False
+        print("\n⚠️  Outputs directory not available - skipping CSV exports (database loading will continue)")
+    
+    if save_outputs:
+        output_csv = os.path.join(outputs_dir, 'harvest_transformed.csv')
+        df.to_csv(output_csv, index=False)
+        print(f"\n✅ Transformed CSV saved to: {output_csv}")
     
     # ============================================
     # STEP 2: GENERATE SUMMARIES
@@ -540,45 +552,55 @@ def main():
     
     # Weekly CT:VT summary
     weekly_summary = generate_weekly_summary(df)
-    weekly_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/weekly_summary.csv'
-    weekly_summary.to_csv(weekly_csv, index=False)
+    if save_outputs:
+        weekly_csv = os.path.join(outputs_dir, 'weekly_summary.csv')
+        weekly_summary.to_csv(weekly_csv, index=False)
     print(f"\n📊 Weekly Summary (last 5 weeks):")
     print(weekly_summary.tail(5).to_string(index=False))
-    print(f"\n✅ Saved to: {weekly_csv}")
+    if save_outputs:
+        print(f"\n✅ Saved to: {weekly_csv}")
     
     # CT breakdown by category
     ct_category, ct_type = generate_ct_breakdown(df)
     if len(ct_category) > 0:
-        ct_cat_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/ct_category_breakdown.csv'
-        ct_category.to_csv(ct_cat_csv, index=False)
+        if save_outputs:
+            ct_cat_csv = os.path.join(outputs_dir, 'ct_category_breakdown.csv')
+            ct_category.to_csv(ct_cat_csv, index=False)
         print(f"\n📊 CT Category Breakdown (last 5 weeks):")
         print(ct_category.tail(10).to_string(index=False))
-        print(f"\n✅ Saved to: {ct_cat_csv}")
+        if save_outputs:
+            print(f"\n✅ Saved to: {ct_cat_csv}")
     
     if len(ct_type) > 0:
-        ct_type_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/ct_type_breakdown.csv'
-        ct_type.to_csv(ct_type_csv, index=False)
+        if save_outputs:
+            ct_type_csv = os.path.join(outputs_dir, 'ct_type_breakdown.csv')
+            ct_type.to_csv(ct_type_csv, index=False)
         print(f"\n📊 Deep Dive vs Shipping Breakdown (post 12/31):")
         print(ct_type.to_string(index=False))
-        print(f"\n✅ Saved to: {ct_type_csv}")
+        if save_outputs:
+            print(f"\n✅ Saved to: {ct_type_csv}")
     
     # VT breakdown
     vt_category = generate_vt_breakdown(df)
     if len(vt_category) > 0:
-        vt_cat_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/vt_category_breakdown.csv'
-        vt_category.to_csv(vt_cat_csv, index=False)
+        if save_outputs:
+            vt_cat_csv = os.path.join(outputs_dir, 'vt_category_breakdown.csv')
+            vt_category.to_csv(vt_cat_csv, index=False)
         print(f"\n🎥 VT Category Breakdown (last 5 weeks):")
         print(vt_category.tail(10).to_string(index=False))
-        print(f"\n✅ Saved to: {vt_cat_csv}")
+        if save_outputs:
+            print(f"\n✅ Saved to: {vt_cat_csv}")
     
     # 100 Days progress
     progress_100days = generate_100_days_progress(df)
     if len(progress_100days) > 0:
-        progress_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/100_days_progress.csv'
-        progress_100days.to_csv(progress_csv, index=False)
+        if save_outputs:
+            progress_csv = os.path.join(outputs_dir, '100_days_progress.csv')
+            progress_100days.to_csv(progress_csv, index=False)
         print(f"\n🎯 100 Days to Hireable Progress:")
         print(progress_100days.tail(10).to_string(index=False))
-        print(f"\n✅ Saved to: {progress_csv}")
+        if save_outputs:
+            print(f"\n✅ Saved to: {progress_csv}")
     
     # ============================================
     # STEP 3: LOAD TO POSTGRESQL
