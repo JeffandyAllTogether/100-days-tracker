@@ -1,0 +1,45 @@
+name: Update Database Daily
+
+on:
+  schedule:
+    # Runs at 11:59 PM EST (4:59 AM UTC next day)
+    - cron: '59 4 * * *'
+  workflow_dispatch:  # Allows manual trigger from GitHub UI
+
+jobs:
+  update-database:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        pip install pandas psycopg2-binary numpy
+    
+    - name: Run ETL Pipeline
+      env:
+        DB_NAME: ${{ secrets.DB_NAME }}
+        DB_USER: ${{ secrets.DB_USER }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        DB_HOST: ${{ secrets.DB_HOST }}
+        DB_PORT: ${{ secrets.DB_PORT }}
+      run: |
+        python harvest_etl.py
+    
+    - name: Success notification
+      if: success()
+      run: |
+        echo "✅ Database updated successfully at $(date)"
+    
+    - name: Failure notification
+      if: failure()
+      run: |
+        echo "❌ Database update failed at $(date)"
+        echo "Check the logs above for details"
