@@ -499,7 +499,9 @@ def main():
     print("="*60)
     
     # Configuration
-    HARVEST_CSV_PATH = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/harvest_time_report.csv'
+    # Using a relative path that works both locally and in Github
+    import os
+    HARVEST_CSV_PATH = os.path.join(os.path.dirname(__file__), 'harvest_time_report.csv')
     
     # PostgreSQL configuration
     # Uses environment variables for deployment, with local fallback
