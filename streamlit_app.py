@@ -271,30 +271,49 @@ st.markdown("""
 # ============================================
 
 def main():
-    # Header
-    st.markdown('<h1 class="main-header">🎯 100 Days to Hireable Tracker</h1>', unsafe_allow_html=True)
-    st.markdown("### Data Engineer | Music Producer | Full Stack Developer")
+    # Get current day first (needed for header)
+    conn = get_database_connection()
+    if conn:
+        try:
+            query = """
+            SELECT COUNT(DISTINCT date) as days_completed
+            FROM harvest_time_tracking
+            WHERE date >= '2025-12-07'
+              AND time_type IN ('CT', 'VT')
+              AND day_of_week != 'Saturday'
+            """
+            days_df = pd.read_sql_query(query, conn)
+            current_day = int(days_df['days_completed'].iloc[0]) if not days_df.empty else 0
+        except:
+            current_day = 28  # Fallback
+        finally:
+            conn.close()
+    else:
+        current_day = 28  # Fallback
+    
+    # Header with dynamic day count
+    st.markdown(f'<h1 class="main-header">🎯 DAY {current_day} / 100 Days of Code!</h1>', unsafe_allow_html=True)
+    
+    # Centered subtitle
+    st.markdown('<p style="text-align: center; font-size: 1.3rem; margin-bottom: 0.5rem;">Data Engineer | Music Producer | Full Stack Developer</p>', unsafe_allow_html=True)
+    
+    # Centered call-to-action
+    st.markdown('<p style="text-align: center; font-size: 1rem; color: #888; margin-bottom: 1rem;">Leave Jeffandy an encouraging comment on LinkedIn or YouTube! 💬</p>', unsafe_allow_html=True)
 
-    # Social links
-    col1, col2, col3 = st.columns([1, 1, 2])
-    with col1:
-        st.markdown("[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/jeffandy/)")
-    with col2:
-        st.markdown("[![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtube.com/playlist?list=PLQjGOmN1hO_lLIiEqIUR2SiACnGt3V59G&si=uulsP6Kxux7h0q7F)")
-    
-    st.markdown("---")
-    
-    # Embedded YouTube video
-    st.markdown("## 🎥 100 Days Journey")
+# Centered social links
     st.markdown("""
-    <iframe width="100%" height="400" 
-    src="https://www.youtube.com/embed/I448nR-uGqc?si=GwIl0J8n44d98P-_" 
-    title="YouTube video player" frameborder="0" 
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-    referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+    <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin: 20px 0;">
+        <a href="https://www.linkedin.com/in/jeffandy/" target="_blank">
+            <img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn" />
+        </a>
+        <a href="https://youtube.com/playlist?list=PLQjGOmN1hO_lLIiEqIUR2SiACnGt3V59G&si=uulsP6Kxux7h0q7F" target="_blank">
+            <img src="https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="YouTube" />
+        </a>
+    </div>
     """, unsafe_allow_html=True)
     
     st.markdown("---")
+    
 
     # Sidebar
     with st.sidebar:
@@ -362,6 +381,31 @@ def main():
         vt_this_week = current_week[current_week['time_type'] == 'VT']['hours'].sum()
         total_this_week = ct_this_week + vt_this_week
         
+        # Get last week's data for comparison
+        if len(weekly_summary) >= 2:
+            last_week = weekly_summary.iloc[1]  # Most recent complete week
+            ct_last_week = last_week['ct_hours']
+            vt_last_week = last_week['vt_hours']
+        elif not weekly_summary.empty:
+            last_week = weekly_summary.iloc[0]
+            ct_last_week = last_week['ct_hours']
+            vt_last_week = last_week['vt_hours']
+        else:
+            ct_last_week = 0
+            vt_last_week = 0
+        
+        # Calculate comparison to last week (not percentage of total)
+        if ct_last_week > 0:
+            ct_vs_last_week = ((ct_this_week - ct_last_week) / ct_last_week * 100)
+        else:
+            ct_vs_last_week = 0
+            
+        if vt_last_week > 0:
+            vt_vs_last_week = ((vt_this_week - vt_last_week) / vt_last_week * 100)
+        else:
+            vt_vs_last_week = 0
+        
+        # Calculate CT:VT ratio for this week
         if total_this_week > 0:
             ct_pct = (ct_this_week / total_this_week * 100)
             vt_pct = (vt_this_week / total_this_week * 100)
@@ -369,17 +413,17 @@ def main():
             ct_pct = vt_pct = 0
         
         with col1:
-            st.metric("💻 Coding Time", f"{ct_this_week:.1f} hrs", f"{ct_pct:.0f}%")
-        
-        with col2:
-            st.metric("🎥 Video Time", f"{vt_this_week:.1f} hrs", f"{vt_pct:.0f}%")
-        
-        with col3:
             st.metric("⏱️ Total Hours", f"{total_this_week:.1f} hrs")
         
-        with col4:
+        with col2:
             ratio_color = "🟢" if 60 <= ct_pct <= 80 else "🟡" if 50 <= ct_pct <= 90 else "🔴"
             st.metric(f"{ratio_color} CT:VT Ratio", f"{ct_pct:.0f}:{vt_pct:.0f}")
+            
+        with col3:
+            st.metric("💻 Coding Time", f"{ct_this_week:.1f} hrs", f"{ct_vs_last_week:+.0f}%")
+        
+        with col4:
+            st.metric("🎥 Video Time", f"{vt_this_week:.1f} hrs", f"{vt_vs_last_week:+.0f}%")
     else:
         st.info("📊 No data recorded for current week yet")
     
@@ -456,6 +500,22 @@ def main():
     
     st.markdown("---")
     
+# ============================================
+# YOUTUBE
+# ============================================
+
+    # Embedded YouTube video
+    st.markdown("## 🎥 100 Days Journey")
+    st.markdown("""
+    <iframe width="100%" height="400" 
+    src="https://www.youtube.com/embed/HpwydaiR9ns?si=Rj3_dJjgJnGXsNqd" 
+    title="YouTube video player" frameborder="0" 
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+    referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
     # ============================================
     # WEEKLY CT:VT TREND
     # ============================================
