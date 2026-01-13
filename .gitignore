@@ -31,4 +31,5 @@ ENV/
 Thumbs.db
 
 # Logs
-*.log
+*.logstreamlit_app_20260106.py
+streamlit_app_old.py
