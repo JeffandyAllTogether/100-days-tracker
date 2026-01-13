@@ -271,6 +271,24 @@ st.markdown("""
 # ============================================
 
 def main():
+    # ============================================
+    # HERO IMAGE SECTION (For Featured App Thumbnail)
+    # ============================================
+    
+    col1, col2, col3 = st.columns([1, 3, 1])
+    with col2:
+        
+        if os.path.exists('preview.png'):
+            st.image('preview.png', use_container_width=True)
+    
+    st.markdown("---")
+
+    
+    
+    # ============================================
+    # DASHBOARD HEADER
+    # ============================================
+    
     # Get current day first (needed for header)
     conn = get_database_connection()
     if conn:
