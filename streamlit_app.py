@@ -407,7 +407,7 @@ def main():
         st.markdown("---")
         st.markdown("### 📝 About")
         st.markdown("""
-        Tracking my journey to become hireable as a Data Engineer & Developer through:
+        Tracking my journey to becoming hireable as a Data Engineer & Developer through:
         - **CT (Coding Time):** Python, SQL, Data Engineering, Design (CSS, Javascript)
         - **VT (Video Time):** Documenting daily progress
         - **100 Days Challenge:** Building projects and skills
@@ -862,15 +862,6 @@ def main():
             hide_index=True,
             use_container_width=True
         )
-    
-    # Footer
-    st.markdown("---")
-    st.markdown("""
-    <div style='text-align: center; color: #666;'>
-        <p>Built by Jeffandy St.Hubert | Data Engineer </p>
-        <p> AllTogether Tech</p>
-    </div>
-    """, unsafe_allow_html=True)
 
     # ============================================
     # CODE VIEWER SECTION (TABBED)
@@ -1771,3 +1762,12 @@ def load_ct_breakdown():
 
 if __name__ == "__main__":
     main()
+
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #666;'>
+    <p>Built by Jeffandy St.Hubert | Data Engineer </p>
+    <p> AllTogether Tech</p>
+</div>
+""", unsafe_allow_html=True)
