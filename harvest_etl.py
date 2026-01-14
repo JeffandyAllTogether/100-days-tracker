@@ -78,30 +78,19 @@ def parse_harvest_csv(filepath):
     # CATEGORIZATION LOGIC
     # ============================================
     
-    # Define CT tasks (all MASTERY tasks)
-    ct_tasks = [
-        'MASTERY: Data Engineering Bootcamp',
-        'MASTERY: Python Bootcamp',
-        'MASTERY: SQL Bootcamp',
-        'MASTERY: HackerRank SQL',
-        'MASTERY: AWS BIG DATA bootcamp',
-        'MASTERY: FODE'
-    ]
-    
-    # Define VT tasks (all BUILDING PROJECTS: Video tasks)
-    vt_tasks = [
-        'BUILDING PROJECTS: Video filming',
-        'BUILDING PROJECTS: Video Script Writing',
-        'BUILDING PROJECTS: Video editing'
-    ]
-    
     # Create time_type column (CT or VT or Other)
+    # IMPROVED: Case-insensitive matching that catches ALL MASTERY and BUILDING PROJECTS tasks
     def categorize_time_type(task):
         if pd.isna(task):
             return 'Other'
-        if any(ct in task for ct in ct_tasks):
+        
+        task_lower = task.lower()  # Convert to lowercase for case-insensitive matching
+        
+        # Check for any MASTERY task (catches all current and future MASTERY tasks)
+        if 'mastery:' in task_lower:
             return 'CT'
-        elif any(vt in task for vt in vt_tasks):
+        # Check for any BUILDING PROJECTS: Video task
+        elif 'building projects: video' in task_lower:
             return 'VT'
         else:
             return 'Other'
@@ -113,21 +102,26 @@ def parse_harvest_csv(filepath):
     # ============================================
     
     def categorize_ct_task(task):
-        """Categorize CT tasks by subject area"""
+        """Categorize CT tasks by subject area - CASE INSENSITIVE"""
         if pd.isna(task):
             return None
-        if 'SQL' in task or 'HackerRank SQL' in task:
+        
+        task_lower = task.lower()  # Convert to lowercase for case-insensitive matching
+        
+        if 'sql' in task_lower:
             return 'SQL'
-        elif 'Data Engineering' in task:
-            return 'Data_Engineering'
-        elif 'Python' in task:
+        elif 'python' in task_lower:  # Catches both "Python Bootcamp" and "HackerRank Python"
             return 'Python'
-        elif 'FODE' in task:
+        elif 'data engineering' in task_lower:
+            return 'Data_Engineering'
+        elif 'design' in task_lower or 'css' in task_lower or 'javascript' in task_lower:
+            return 'Design'
+        elif 'fode' in task_lower:
             return 'FODE'
-        elif 'AWS' in task:
+        elif 'aws' in task_lower:
             return 'AWS'
         else:
-            return None
+            return 'Uncategorized'
     
     df['CT_Category'] = df['Task'].apply(categorize_ct_task)
     
@@ -499,12 +493,11 @@ def main():
     print("="*60)
     
     # Configuration
-    # Use relative path that works both locally and in GitHub Actions
-    import os
-    HARVEST_CSV_PATH = os.path.join(os.path.dirname(__file__), 'harvest_time_report.csv')
+    HARVEST_CSV_PATH = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/harvest_time_report.csv'
     
     # PostgreSQL configuration
     # Uses environment variables for deployment, with local fallback
+    import os
     
     DB_CONFIG = {
         'dbname': os.getenv('DB_NAME', 'harvest_tracker'),
@@ -525,23 +518,10 @@ def main():
     
     df = parse_harvest_csv(HARVEST_CSV_PATH)
     
-    # Save transformed CSV for inspection (optional - only if outputs dir exists or can be created)
-    script_dir = os.path.dirname(__file__)
-    outputs_dir = os.path.join(script_dir, 'outputs')
-    
-    # Create outputs directory if it doesn't exist (for local use)
-    try:
-        os.makedirs(outputs_dir, exist_ok=True)
-        save_outputs = True
-    except:
-        # If we can't create outputs (like in GitHub Actions), skip saving CSVs
-        save_outputs = False
-        print("\n⚠️  Outputs directory not available - skipping CSV exports (database loading will continue)")
-    
-    if save_outputs:
-        output_csv = os.path.join(outputs_dir, 'harvest_transformed.csv')
-        df.to_csv(output_csv, index=False)
-        print(f"\n✅ Transformed CSV saved to: {output_csv}")
+    # Save transformed CSV for inspection
+    output_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/harvest_transformed.csv'
+    df.to_csv(output_csv, index=False)
+    print(f"\n✅ Transformed CSV saved to: {output_csv}")
     
     # ============================================
     # STEP 2: GENERATE SUMMARIES
@@ -552,55 +532,45 @@ def main():
     
     # Weekly CT:VT summary
     weekly_summary = generate_weekly_summary(df)
-    if save_outputs:
-        weekly_csv = os.path.join(outputs_dir, 'weekly_summary.csv')
-        weekly_summary.to_csv(weekly_csv, index=False)
+    weekly_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/weekly_summary.csv'
+    weekly_summary.to_csv(weekly_csv, index=False)
     print(f"\n📊 Weekly Summary (last 5 weeks):")
     print(weekly_summary.tail(5).to_string(index=False))
-    if save_outputs:
-        print(f"\n✅ Saved to: {weekly_csv}")
+    print(f"\n✅ Saved to: {weekly_csv}")
     
     # CT breakdown by category
     ct_category, ct_type = generate_ct_breakdown(df)
     if len(ct_category) > 0:
-        if save_outputs:
-            ct_cat_csv = os.path.join(outputs_dir, 'ct_category_breakdown.csv')
-            ct_category.to_csv(ct_cat_csv, index=False)
+        ct_cat_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/ct_category_breakdown.csv'
+        ct_category.to_csv(ct_cat_csv, index=False)
         print(f"\n📊 CT Category Breakdown (last 5 weeks):")
         print(ct_category.tail(10).to_string(index=False))
-        if save_outputs:
-            print(f"\n✅ Saved to: {ct_cat_csv}")
+        print(f"\n✅ Saved to: {ct_cat_csv}")
     
     if len(ct_type) > 0:
-        if save_outputs:
-            ct_type_csv = os.path.join(outputs_dir, 'ct_type_breakdown.csv')
-            ct_type.to_csv(ct_type_csv, index=False)
+        ct_type_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/ct_type_breakdown.csv'
+        ct_type.to_csv(ct_type_csv, index=False)
         print(f"\n📊 Deep Dive vs Shipping Breakdown (post 12/31):")
         print(ct_type.to_string(index=False))
-        if save_outputs:
-            print(f"\n✅ Saved to: {ct_type_csv}")
+        print(f"\n✅ Saved to: {ct_type_csv}")
     
     # VT breakdown
     vt_category = generate_vt_breakdown(df)
     if len(vt_category) > 0:
-        if save_outputs:
-            vt_cat_csv = os.path.join(outputs_dir, 'vt_category_breakdown.csv')
-            vt_category.to_csv(vt_cat_csv, index=False)
+        vt_cat_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/vt_category_breakdown.csv'
+        vt_category.to_csv(vt_cat_csv, index=False)
         print(f"\n🎥 VT Category Breakdown (last 5 weeks):")
         print(vt_category.tail(10).to_string(index=False))
-        if save_outputs:
-            print(f"\n✅ Saved to: {vt_cat_csv}")
+        print(f"\n✅ Saved to: {vt_cat_csv}")
     
     # 100 Days progress
     progress_100days = generate_100_days_progress(df)
     if len(progress_100days) > 0:
-        if save_outputs:
-            progress_csv = os.path.join(outputs_dir, '100_days_progress.csv')
-            progress_100days.to_csv(progress_csv, index=False)
+        progress_csv = '/Users/jeffandyalltogether/Documents/AllTogether Tech/100DAYS_projects/100-days-tracker/outputs/100_days_progress.csv'
+        progress_100days.to_csv(progress_csv, index=False)
         print(f"\n🎯 100 Days to Hireable Progress:")
         print(progress_100days.tail(10).to_string(index=False))
-        if save_outputs:
-            print(f"\n✅ Saved to: {progress_csv}")
+        print(f"\n✅ Saved to: {progress_csv}")
     
     # ============================================
     # STEP 3: LOAD TO POSTGRESQL
