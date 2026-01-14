@@ -1002,31 +1002,23 @@ def parse_harvest_csv(filepath):
     # CATEGORIZATION LOGIC
     # ============================================
     
-    # Define CT tasks (all MASTERY tasks)
-    ct_tasks = [
-        'MASTERY: Data Engineering Bootcamp',
-        'MASTERY: Python Bootcamp',
-        'MASTERY: SQL Bootcamp',
-        'MASTERY: HackerRank SQL',
-        'MASTERY: AWS BIG DATA bootcamp',
-        'MASTERY: FODE',
-        'MASTERY: design'
-    ]
-    
-    # Define VT tasks (all BUILDING PROJECTS: Video tasks)
-    vt_tasks = [
-        'BUILDING PROJECTS: Video filming',
-        'BUILDING PROJECTS: Video Script Writing',
-        'BUILDING PROJECTS: Video editing'
-    ]
+    # ============================================
+    # CATEGORIZATION LOGIC
+    # ============================================
     
     # Create time_type column (CT or VT or Other)
+    # IMPROVED: Case-insensitive matching that catches ALL MASTERY and BUILDING PROJECTS tasks
     def categorize_time_type(task):
         if pd.isna(task):
             return 'Other'
-        if any(ct in task for ct in ct_tasks):
+        
+        task_lower = task.lower()  # Convert to lowercase for case-insensitive matching
+        
+        # Check for any MASTERY task (catches all current and future MASTERY tasks)
+        if 'mastery:' in task_lower:
             return 'CT'
-        elif any(vt in task for vt in vt_tasks):
+        # Check for any BUILDING PROJECTS: Video task
+        elif 'building projects: video' in task_lower:
             return 'VT'
         else:
             return 'Other'
@@ -1038,23 +1030,26 @@ def parse_harvest_csv(filepath):
     # ============================================
     
     def categorize_ct_task(task):
-        """Categorize CT tasks by subject area"""
+        """Categorize CT tasks by subject area - CASE INSENSITIVE"""
         if pd.isna(task):
             return None
-        if 'SQL' in task or 'HackerRank SQL' in task:
+        
+        task_lower = task.lower()  # Convert to lowercase for case-insensitive matching
+        
+        if 'sql' in task_lower:
             return 'SQL'
-        elif 'Data Engineering' in task:
-            return 'Data_Engineering'
-        elif 'Python' in task:
+        elif 'python' in task_lower:  # Catches both "Python Bootcamp" and "HackerRank Python"
             return 'Python'
-        elif 'FODE' in task:
+        elif 'data engineering' in task_lower:
+            return 'Data_Engineering'
+        elif 'design' in task_lower or 'css' in task_lower or 'javascript' in task_lower:
+            return 'Design'
+        elif 'fode' in task_lower:
             return 'FODE'
-        elif 'AWS' in task:
+        elif 'aws' in task_lower:
             return 'AWS'
-        elif 'design' in task or 'CSS' in task or 'Javascript' in task:
-            return 'design
         else:
-            return None
+            return 'Uncategorized'
     
     df['CT_Category'] = df['Task'].apply(categorize_ct_task)
     
