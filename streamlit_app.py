@@ -354,7 +354,7 @@ def main():
     st.markdown(f'<h1 class="main-header">🎯 DAY {current_day} / 100 Days of Code!</h1>', unsafe_allow_html=True)
     
     # Centered subtitle
-    st.markdown('<p style="text-align: center; font-size: 1.3rem; margin-bottom: 0.5rem;">Data Engineer | Music Producer | Full Stack Developer</p>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; font-size: 1.3rem; margin-bottom: 0.5rem;">Data Engineer | Toured with Lauryn Hill & Kanye West | Now Building Pipelines for Creators</p>', unsafe_allow_html=True)
     
     # Centered call-to-action
     st.markdown('<p style="text-align: center; font-size: 1rem; color: #888; margin-bottom: 1rem;">Leave Jeffandy an encouraging comment on LinkedIn or YouTube! 💬</p>', unsafe_allow_html=True)
@@ -407,10 +407,15 @@ def main():
         st.markdown("---")
         st.markdown("### 📝 About")
         st.markdown("""
-        Tracking my journey to becoming hireable as a Data Engineer & Developer through:
-        - **CT (Coding Time):** Python, SQL, Data Engineering, Design (CSS, Javascript)
-        - **VT (Video Time):** Documenting daily progress
-        - **100 Days Challenge:** Building projects and skills
+        "End-to-end data pipeline tracking my 100 Days to Hireable journey.
+        Tech Stack:
+
+        - **Python ETL scripts
+        - **Supabase (PostgreSQL)
+        - **GitHub Actions (CI/CD)
+        - **Streamlit dashboard
+                    
+        *Built by Jeffandy St.Hubert - Data Engineer, MIT Certified, former touring guitarist (Lauryn Hill, Kanye West)*            
         """)
     
     # Load data
