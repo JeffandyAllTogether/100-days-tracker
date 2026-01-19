@@ -131,9 +131,12 @@ def parse_harvest_csv(filepath):
     
     def categorize_ct_type(row):
         """
-        Determine if CT is Deep Dive or Shipping
-        Post 12/31/2025: Look for DEEP DIVE or SHIPPING keywords in notes
-        Pre 12/31/2025: Return 'Uncategorized'
+        Determine if CT is Deep Dive, Shipping, or Practice
+        Post 12/31/2025: Look for keywords in notes:
+        - DEEP DIVE / DL / DD → Deep_Dive
+        - SHIPPING / S → Shipping  
+        - PRACTICE / P → Practice
+        Pre 12/31/2025: Return 'Pre_Classification'
         """
         if row['Time_Type'] != 'CT':
             return None
@@ -145,13 +148,18 @@ def parse_harvest_csv(filepath):
             else:
                 return 'Pre_Classification'
         
-        notes = str(row['Notes'])
+        notes = str(row['Notes']).upper()  # Convert to uppercase for easier matching
         
         # Post 12/31 logic - look for explicit keywords
         if row['Date'] >= pd.Timestamp('2025-12-31'):
-            if 'DEEP DIVE' in notes or 'DL:' in notes or 'DL ' in notes:
+            # Check for PRACTICE first (most specific)
+            if 'PRACTICE' in notes or notes.startswith('P:') or notes.startswith('P '):
+                return 'Practice'
+            # Check for DEEP DIVE
+            elif 'DEEP DIVE' in notes or 'DL:' in notes or 'DL ' in notes or 'DD:' in notes or 'DD ' in notes:
                 return 'Deep_Dive'
-            elif 'SHIPPING' in notes or 'S:' in notes or notes.startswith('S '):
+            # Check for SHIPPING
+            elif 'SHIPPING' in notes or notes.startswith('S:') or notes.startswith('S '):
                 return 'Shipping'
             else:
                 return 'Uncategorized'
@@ -379,7 +387,7 @@ def create_harvest_table(conn):
         time_type VARCHAR(20),          -- 'CT', 'VT', or 'Other'
         ct_category VARCHAR(50),         -- 'SQL', 'Python', 'Data_Engineering', 'FODE', 'AWS'
         vt_category VARCHAR(50),         -- 'Filming', 'Scripting', 'Editing'
-        ct_type VARCHAR(50),             -- 'Deep_Dive', 'Shipping', 'Uncategorized', 'Pre_Classification'
+        ct_type VARCHAR(50),             -- 'Deep_Dive', 'Shipping', 'Practice', 'Uncategorized', 'Pre_Classification'
         day_number INTEGER,              -- For VT: which day of 100
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(date, task, notes)        -- Prevent duplicate entries
@@ -499,7 +507,7 @@ def main():
     
     DB_CONFIG = {
         'dbname': os.getenv('DB_NAME', 'harvest_tracker'),
-        'user': os.getenv('DB_USER', 'postgres'),
+        'user': os.getenv('DB_USER', 'fandy'),
         'password': os.getenv('DB_PASSWORD', 'password'),
         'host': os.getenv('DB_HOST', 'localhost'),
         'port': os.getenv('DB_PORT', '5432')

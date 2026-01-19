@@ -202,7 +202,7 @@ def load_current_week_stats():
 
 @st.cache_data(ttl=300)
 def load_dd_vs_shipping():
-    """Load Deep Dive vs Shipping breakdown"""
+    """Load Deep Dive vs Shipping vs Practice breakdown"""
     conn = get_database_connection()
     if conn is None:
         return pd.DataFrame()
@@ -213,18 +213,22 @@ def load_dd_vs_shipping():
         week_number,
         SUM(CASE WHEN ct_type = 'Deep_Dive' THEN hours ELSE 0 END) as deep_dive_hours,
         SUM(CASE WHEN ct_type = 'Shipping' THEN hours ELSE 0 END) as shipping_hours,
-        SUM(CASE WHEN ct_type IN ('Deep_Dive', 'Shipping') THEN hours ELSE 0 END) as total_categorized,
+        SUM(CASE WHEN ct_type = 'Practice' THEN hours ELSE 0 END) as practice_hours,
+        SUM(CASE WHEN ct_type IN ('Deep_Dive', 'Shipping', 'Practice') THEN hours ELSE 0 END) as total_categorized,
         CONCAT(
             ROUND(SUM(CASE WHEN ct_type = 'Deep_Dive' THEN hours ELSE 0 END) / 
-                  NULLIF(SUM(CASE WHEN ct_type IN ('Deep_Dive', 'Shipping') THEN hours ELSE 0 END), 0) * 100),
+                  NULLIF(SUM(CASE WHEN ct_type IN ('Deep_Dive', 'Shipping', 'Practice') THEN hours ELSE 0 END), 0) * 100),
             ':',
             ROUND(SUM(CASE WHEN ct_type = 'Shipping' THEN hours ELSE 0 END) / 
-                  NULLIF(SUM(CASE WHEN ct_type IN ('Deep_Dive', 'Shipping') THEN hours ELSE 0 END), 0) * 100)
-        ) as dd_shipping_ratio
+                  NULLIF(SUM(CASE WHEN ct_type IN ('Deep_Dive', 'Shipping', 'Practice') THEN hours ELSE 0 END), 0) * 100),
+            ':',
+            ROUND(SUM(CASE WHEN ct_type = 'Practice' THEN hours ELSE 0 END) / 
+                  NULLIF(SUM(CASE WHEN ct_type IN ('Deep_Dive', 'Shipping', 'Practice') THEN hours ELSE 0 END), 0) * 100)
+        ) as dd_ship_practice_ratio
     FROM harvest_time_tracking
     WHERE time_type = 'CT'
-      AND date >= '2025-12-31'  -- Only after Deep Dive/Shipping started
-      AND ct_type IN ('Deep_Dive', 'Shipping')
+      AND date >= '2025-12-31'  -- Only after classification started
+      AND ct_type IN ('Deep_Dive', 'Shipping', 'Practice')
     GROUP BY week_start, week_number
     ORDER BY week_start DESC
     """
@@ -232,6 +236,79 @@ def load_dd_vs_shipping():
     df = pd.read_sql_query(query, conn)
     conn.close()
     return df
+
+@st.cache_data(ttl=300)
+def load_day_of_week_averages():
+    """Load average hours by day of week"""
+    conn = get_database_connection()
+    if conn is None:
+        return pd.DataFrame()
+    
+    query = """
+    SELECT 
+        day_of_week,
+        COUNT(DISTINCT date) as total_days,
+        ROUND(AVG(daily_total), 1) as avg_total_hours,
+        ROUND(AVG(daily_ct), 1) as avg_ct_hours,
+        ROUND(AVG(daily_vt), 1) as avg_vt_hours,
+        ROUND(AVG(daily_ct) / NULLIF(AVG(daily_total), 0) * 100, 1) as avg_ct_percentage
+    FROM (
+        SELECT 
+            date,
+            day_of_week,
+            SUM(CASE WHEN time_type IN ('CT', 'VT') THEN hours ELSE 0 END) as daily_total,
+            SUM(CASE WHEN time_type = 'CT' THEN hours ELSE 0 END) as daily_ct,
+            SUM(CASE WHEN time_type = 'VT' THEN hours ELSE 0 END) as daily_vt
+        FROM harvest_time_tracking
+        WHERE date >= '2025-12-07'  -- Only challenge period
+          AND day_of_week != 'Saturday'  -- Exclude Sabbath
+        GROUP BY date, day_of_week
+    ) daily_stats
+    GROUP BY day_of_week
+    ORDER BY 
+        CASE day_of_week
+            WHEN 'Sunday' THEN 1
+            WHEN 'Monday' THEN 2
+            WHEN 'Tuesday' THEN 3
+            WHEN 'Wednesday' THEN 4
+            WHEN 'Thursday' THEN 5
+            WHEN 'Friday' THEN 6
+            WHEN 'Saturday' THEN 7
+        END
+    """
+    
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+    return df
+
+@st.cache_data(ttl=60)  # Cache for 1 minute (more frequent updates)
+def load_today_stats():
+    """Load today's hours so far"""
+    conn = get_database_connection()
+    if conn is None:
+        return None
+    
+    from datetime import date
+    today = date.today()
+    
+    query = """
+    SELECT 
+        day_of_week,
+        SUM(CASE WHEN time_type IN ('CT', 'VT') THEN hours ELSE 0 END) as total_hours,
+        SUM(CASE WHEN time_type = 'CT' THEN hours ELSE 0 END) as ct_hours,
+        SUM(CASE WHEN time_type = 'VT' THEN hours ELSE 0 END) as vt_hours
+    FROM harvest_time_tracking
+    WHERE date = %s
+    GROUP BY day_of_week
+    """
+    
+    df = pd.read_sql_query(query, conn, params=(today,))
+    conn.close()
+    
+    if df.empty:
+        return None
+    
+    return df.iloc[0].to_dict()
 
 # ============================================
 # CUSTOM CSS
@@ -508,6 +585,139 @@ def main():
     st.markdown("---")
     
     # ============================================
+    # TODAY'S DAY OF WEEK INSIGHTS
+    # ============================================
+    
+    st.markdown("##Today's Typical Workload")
+    
+    from datetime import datetime
+    today_name = datetime.now().strftime("%A")  # e.g., "Sunday"
+    
+    # Load day of week averages and today's stats
+    dow_averages = load_day_of_week_averages()
+    today_stats = load_today_stats()
+    
+    if not dow_averages.empty:
+        # Get today's day of week average
+        today_avg = dow_averages[dow_averages['day_of_week'] == today_name]
+        
+        if not today_avg.empty:
+            today_avg = today_avg.iloc[0]
+            
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                # Show the insight message
+                avg_total = today_avg['avg_total_hours']
+                avg_ct = today_avg['avg_ct_hours']
+                avg_vt = today_avg['avg_vt_hours']
+                total_days = int(today_avg['total_days'])
+                
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                            padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0;">📊 {today_name} Insights</h3>
+                    <p style="font-size: 1.2rem; margin: 5px 0;">
+                        Hello Mr. Jeffandy. On <strong>{today_name}s</strong> you usually work for a total of 
+                        <strong>{avg_total:.1f} hours</strong> where 
+                        <strong>{avg_ct:.1f} hours</strong> are strictly coding.
+                    </p>
+                    <p style="font-size: 0.9rem; opacity: 0.9; margin: 5px 0;">
+                        📹 Video time: {avg_vt:.1f} hrs | 
+                        📈 Based on past {total_days} {today_name}s
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Show today's progress if data exists
+                if today_stats:
+                    today_total = today_stats['total_hours']
+                    today_ct = today_stats['ct_hours']
+                    today_vt = today_stats['vt_hours']
+                    
+                    # Calculate percentages vs average
+                    total_vs_avg = ((today_total - avg_total) / avg_total * 100) if avg_total > 0 else 0
+                    ct_vs_avg = ((today_ct - avg_ct) / avg_ct * 100) if avg_ct > 0 else 0
+                    
+                    # Determine status
+                    if today_total >= avg_total:
+                        status_emoji = "🔥"
+                        status_text = "ahead of"
+                        status_color = "#10b981"
+                    else:
+                        status_emoji = "📊"
+                        status_text = "tracking"
+                        status_color = "#f59e0b"
+                    
+                    st.markdown(f"""
+                    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 8px; 
+                                border-left: 4px solid {status_color};">
+                        <h4 style="margin: 0 0 10px 0;">{status_emoji} Today's Progress</h4>
+                        <p style="margin: 5px 0;">
+                            You've logged <strong>{today_total:.1f} hours</strong> so far today 
+                            ({today_ct:.1f} CT, {today_vt:.1f} VT)
+                        </p>
+                        <p style="margin: 5px 0; color: {status_color}; font-weight: bold;">
+                            You're {status_text} your typical {today_name} pace by {abs(total_vs_avg):.0f}%
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info(f"⏰ No time logged yet today. Your typical {today_name} target: {avg_total:.1f} hours")
+            
+            with col2:
+                st.markdown("### 📊 All Days Average")
+                
+                # Create a simple bar chart of all days
+                import plotly.graph_objects as go
+                
+                fig = go.Figure()
+                
+                # Highlight current day
+                colors = ['#667eea' if day == today_name else '#cccccc' 
+                         for day in dow_averages['day_of_week']]
+                
+                fig.add_trace(go.Bar(
+                    x=dow_averages['day_of_week'],
+                    y=dow_averages['avg_total_hours'],
+                    marker_color=colors,
+                    text=dow_averages['avg_total_hours'].round(1),
+                    textposition='outside',
+                    hovertemplate='<b>%{x}</b><br>' +
+                                  'Total: %{y:.1f} hrs<br>' +
+                                  '<extra></extra>'
+                ))
+                
+                fig.update_layout(
+                    title=f'Average Hours by Day<br><sub>({today_name} highlighted)</sub>',
+                    xaxis_title="",
+                    yaxis_title="Hours",
+                    height=300,
+                    showlegend=False,
+                    margin=dict(t=60, b=40, l=40, r=20)
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Show detailed breakdown
+                with st.expander("See detailed breakdown by day"):
+                    st.dataframe(
+                        dow_averages,
+                        column_config={
+                            "day_of_week": "Day",
+                            "total_days": st.column_config.NumberColumn("# Days", format="%d"),
+                            "avg_total_hours": st.column_config.NumberColumn("Avg Total", format="%.1f hrs"),
+                            "avg_ct_hours": st.column_config.NumberColumn("Avg CT", format="%.1f hrs"),
+                            "avg_vt_hours": st.column_config.NumberColumn("Avg VT", format="%.1f hrs"),
+                            "avg_ct_percentage": st.column_config.NumberColumn("CT %", format="%.0f%%")
+                        },
+                        hide_index=True,
+                        use_container_width=True
+                    )
+    
+    st.markdown("---")
+    
+    # ============================================
     # KEY METRICS ROW
     # ============================================
     
@@ -568,12 +778,25 @@ def main():
         )
     
     with col4:
-        if not dd_shipping.empty and not dd_shipping.iloc[0]['dd_shipping_ratio'] == 'nan:nan':
-            latest_dd_ship = dd_shipping.iloc[0]['dd_shipping_ratio']
+        if not dd_shipping.empty and 'dd_ship_practice_ratio' in dd_shipping.columns:
+            latest_ratio = dd_shipping.iloc[0]['dd_ship_practice_ratio']
+            if latest_ratio and latest_ratio != 'nan:nan:nan':
+                st.metric(
+                    "Learn:Practice:Ship",
+                    latest_ratio,
+                    help="Deep Dive : Practice : Shipping"
+                )
+            else:
+                st.metric(
+                    "Learn:Practice:Ship",
+                    "No data",
+                    help="Deep Dive : Practice : Shipping"
+                )
+        else:
             st.metric(
-                "Deep Dive:Shipping",
-                latest_dd_ship,
-                help="Target: 30:70"
+                "Learn:Practice:Ship",
+                "No data",
+                help="Deep Dive : Practice : Shipping"
             )
     
     st.markdown("---")
@@ -693,7 +916,7 @@ def main():
             st.plotly_chart(fig_ct, use_container_width=True)
     
     with col2:
-        st.markdown("### Deep Dive vs Shipping")
+        st.markdown("### Deep Dive | Practice | Shipping ")
         if not dd_shipping.empty:
             # Get recent weeks
             dd_ship_display = dd_shipping.head(weeks_to_show).sort_values('week_start')
@@ -704,25 +927,52 @@ def main():
                 name='Deep Dive',
                 x=dd_ship_display['week_start'],
                 y=dd_ship_display['deep_dive_hours'],
-                marker_color='#3b82f6'
+                marker_color='#3b82f6',
+                text=dd_ship_display['deep_dive_hours'].round(1),
+                textposition='inside'
+            ))
+            
+            fig_dd.add_trace(go.Bar(
+                name='Practice',
+                x=dd_ship_display['week_start'],
+                y=dd_ship_display['practice_hours'],
+                marker_color='#f59e0b',
+                text=dd_ship_display['practice_hours'].round(1),
+                textposition='inside'
             ))
             
             fig_dd.add_trace(go.Bar(
                 name='Shipping',
                 x=dd_ship_display['week_start'],
                 y=dd_ship_display['shipping_hours'],
-                marker_color='#10b981'
+                marker_color='#10b981',
+                text=dd_ship_display['shipping_hours'].round(1),
+                textposition='inside'
             ))
             
             fig_dd.update_layout(
                 barmode='stack',
-                title='Deep Dive vs Shipping (Target: 30:70)',
+                title='Coding Time Breakdown<br><sub>Deep Dive (Learn) | Practice (HackerRank/LeetCode) | Shipping (Build)</sub>',
                 xaxis_title='Week Starting',
                 yaxis_title='Hours',
-                height=400
+                height=400,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                )
             )
             
             st.plotly_chart(fig_dd, use_container_width=True)
+            
+            # Show ratio info
+            if not dd_ship_display.empty and 'dd_ship_practice_ratio' in dd_ship_display.columns:
+                latest_ratio = dd_ship_display.iloc[-1]['dd_ship_practice_ratio']
+                if latest_ratio and latest_ratio != 'nan:nan:nan':
+                    st.info(f"📊 Latest ratio: **{latest_ratio}** (Deep Dive : Practice : Shipping)")
+
     
     st.markdown("---")
     
@@ -1059,14 +1309,17 @@ def parse_harvest_csv(filepath):
     df['CT_Category'] = df['Task'].apply(categorize_ct_task)
     
     # ============================================
-    # CT SUB-CATEGORIZATION (Deep Dive vs Shipping)
+    # CT SUB-CATEGORIZATION (Deep Dive vs Shipping vs Practice)
     # ============================================
     
     def categorize_ct_type(row):
         """
-        Determine if CT is Deep Dive or Shipping
-        Post 12/31/2025: Look for DEEP DIVE or SHIPPING keywords in notes
-        Pre 12/31/2025: Return 'Uncategorized'
+        Determine if CT is Deep Dive, Shipping, or Practice
+        Post 12/31/2025: Look for keywords in notes:
+        - DEEP DIVE / DL / DD → Deep_Dive
+        - SHIPPING / S → Shipping  
+        - PRACTICE / P → Practice
+        Pre 12/31/2025: Return 'Pre_Classification'
         """
         if row['Time_Type'] != 'CT':
             return None
@@ -1078,13 +1331,18 @@ def parse_harvest_csv(filepath):
             else:
                 return 'Pre_Classification'
         
-        notes = str(row['Notes'])
+        notes = str(row['Notes']).upper()  # Convert to uppercase for easier matching
         
         # Post 12/31 logic - look for explicit keywords
         if row['Date'] >= pd.Timestamp('2025-12-31'):
-            if 'DEEP DIVE' in notes or 'DL:' in notes or 'DL ' in notes:
+            # Check for PRACTICE first (most specific)
+            if 'PRACTICE' in notes or notes.startswith('P:') or notes.startswith('P '):
+                return 'Practice'
+            # Check for DEEP DIVE
+            elif 'DEEP DIVE' in notes or 'DL:' in notes or 'DL ' in notes or 'DD:' in notes or 'DD ' in notes:
                 return 'Deep_Dive'
-            elif 'SHIPPING' in notes or 'S:' in notes or notes.startswith('S '):
+            # Check for SHIPPING
+            elif 'SHIPPING' in notes or notes.startswith('S:') or notes.startswith('S '):
                 return 'Shipping'
             else:
                 return 'Uncategorized'
