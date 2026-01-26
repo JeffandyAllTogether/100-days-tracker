@@ -33,3 +33,17 @@ Thumbs.db
 # Logs
 *.logstreamlit_app_20260106.py
 streamlit_app_old.py
+
+# Ignore all screenshots
+*.png
+*.jpg
+*.jpeg
+
+# Ignore all manual version backups of python files
+*_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].py
+*_old.py
+*_IMPROVED.py
+
+# Keep your main app files tracked
+!streamlit_app.py
+!harvest_etl.py
