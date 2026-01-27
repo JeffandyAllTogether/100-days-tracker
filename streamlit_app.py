@@ -68,7 +68,8 @@ def load_weekly_summary():
         week_start,
         SUM(CASE WHEN time_type = 'CT' THEN hours ELSE 0 END) as ct_hours,
         SUM(CASE WHEN time_type = 'VT' THEN hours ELSE 0 END) as vt_hours,
-        SUM(CASE WHEN time_type IN ('CT', 'VT') THEN hours ELSE 0 END) as total_hours,
+        SUM(CASE WHEN time_type = 'NT' THEN hours ELSE 0 END) as nt_hours,
+        SUM(CASE WHEN time_type IN ('CT', 'VT', 'NT') THEN hours ELSE 0 END) as total_hours,
         ROUND(
             SUM(CASE WHEN time_type = 'CT' THEN hours ELSE 0 END) / 
             NULLIF(SUM(CASE WHEN time_type IN ('CT', 'VT') THEN hours ELSE 0 END), 0) * 100, 
@@ -87,7 +88,7 @@ def load_weekly_summary():
                   NULLIF(SUM(CASE WHEN time_type IN ('CT', 'VT') THEN hours ELSE 0 END), 0) * 100)
         ) as ct_vt_ratio
     FROM harvest_time_tracking
-    WHERE time_type IN ('CT', 'VT')
+    WHERE time_type IN ('CT', 'VT', 'NT')
       AND week_start >= '2025-12-07'  -- Only show challenge weeks
     GROUP BY week_number, week_start
     ORDER BY week_start DESC
@@ -132,7 +133,7 @@ def load_vt_breakdown():
         return pd.DataFrame()
     
     query = """
-    SELECT 
+    SELECT
         week_start,
         week_number,
         vt_category,
@@ -145,7 +146,11 @@ def load_vt_breakdown():
     GROUP BY week_start, week_number, vt_category, day_number
     ORDER BY week_start DESC, day_number
     """
-    
+
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+    return df
+
 @st.cache_data(ttl=300)
 def load_100_days_progress():
     """Load 100 Days challenge progress"""
@@ -530,55 +535,71 @@ def main():
     st.markdown("## 📅 Current Week Overview")
     
     if not current_week.empty:
-        col1, col2, col3, col4 = st.columns(4)
-        
+        col1, col2, col3, col4, col5 = st.columns(5)
+
         ct_this_week = current_week[current_week['time_type'] == 'CT']['hours'].sum()
         vt_this_week = current_week[current_week['time_type'] == 'VT']['hours'].sum()
-        total_this_week = ct_this_week + vt_this_week
-        
+        nt_this_week = current_week[current_week['time_type'] == 'NT']['hours'].sum()
+        total_this_week = ct_this_week + vt_this_week + nt_this_week
+
+        # Check if nt_hours column exists (for backwards compatibility)
+        has_nt_column = 'nt_hours' in weekly_summary.columns
+
         # Get last week's data for comparison
         if len(weekly_summary) >= 2:
-            last_week = weekly_summary.iloc[1]  # Most recent complete week
+            last_week = weekly_summary.iloc[1]
             ct_last_week = last_week['ct_hours']
             vt_last_week = last_week['vt_hours']
+            nt_last_week = last_week['nt_hours'] if has_nt_column else 0
         elif not weekly_summary.empty:
             last_week = weekly_summary.iloc[0]
             ct_last_week = last_week['ct_hours']
             vt_last_week = last_week['vt_hours']
+            nt_last_week = last_week['nt_hours'] if has_nt_column else 0
         else:
             ct_last_week = 0
             vt_last_week = 0
-        
-        # Calculate comparison to last week (not percentage of total)
-        if ct_last_week > 0:
-            ct_vs_last_week = ((ct_this_week - ct_last_week) / ct_last_week * 100)
-        else:
-            ct_vs_last_week = 0
-            
-        if vt_last_week > 0:
-            vt_vs_last_week = ((vt_this_week - vt_last_week) / vt_last_week * 100)
-        else:
-            vt_vs_last_week = 0
-        
-        # Calculate CT:VT ratio for this week
+            nt_last_week = 0
+
+        # Handle NaN values (convert to 0)
+        nt_last_week = 0 if pd.isna(nt_last_week) else nt_last_week
+
+        # Calculate comparison to last week
+        ct_vs_last_week = ((ct_this_week - ct_last_week) / ct_last_week * 100) if ct_last_week > 0 else 0
+        vt_vs_last_week = ((vt_this_week - vt_last_week) / vt_last_week * 100) if vt_last_week > 0 else 0
+        nt_vs_last_week = ((nt_this_week - nt_last_week) / nt_last_week * 100) if nt_last_week > 0 else 0
+
+        # Calculate CT:VT:NT ratio for this week
         if total_this_week > 0:
             ct_pct = (ct_this_week / total_this_week * 100)
             vt_pct = (vt_this_week / total_this_week * 100)
+            nt_pct = (nt_this_week / total_this_week * 100)
         else:
-            ct_pct = vt_pct = 0
-        
+            ct_pct = vt_pct = nt_pct = 0
+
         with col1:
             st.metric("⏱️ Total Hours", f"{total_this_week:.1f} hrs")
-        
+
         with col2:
             ratio_color = "🟢" if 60 <= ct_pct <= 80 else "🟡" if 50 <= ct_pct <= 90 else "🔴"
-            st.metric(f"{ratio_color} CT:VT Ratio", f"{ct_pct:.0f}:{vt_pct:.0f}")
-            
+            # Show CT:VT:NT if NT exists, otherwise just CT:VT
+            if nt_this_week > 0:
+                st.metric(f"{ratio_color} CT:VT:NT", f"{ct_pct:.0f}:{vt_pct:.0f}:{nt_pct:.0f}")
+            else:
+                st.metric(f"{ratio_color} CT:VT Ratio", f"{ct_pct:.0f}:{vt_pct:.0f}")
+
         with col3:
             st.metric("💻 Coding Time", f"{ct_this_week:.1f} hrs", f"{ct_vs_last_week:+.0f}%")
-        
+
         with col4:
             st.metric("🎥 Video Time", f"{vt_this_week:.1f} hrs", f"{vt_vs_last_week:+.0f}%")
+
+        with col5:
+            # Only show NT metric if there's any NT data
+            if nt_this_week > 0 or nt_last_week > 0:
+                st.metric("🤝 Networking", f"{nt_this_week:.1f} hrs", f"{nt_vs_last_week:+.0f}%")
+            else:
+                st.metric("🤝 Networking", "—")
     else:
         st.info("📊 No data recorded for current week yet")
     
@@ -806,20 +827,26 @@ def main():
     # WEEKLY CT:VT TREND
     # ============================================
     
-    st.markdown("## 📊 Weekly CT:VT Trend")
-    
+    st.markdown("## 📊 Weekly CT:VT:NT Trend")
+
     if not weekly_summary.empty:
         # Limit to selected weeks
         weekly_display = weekly_summary.head(weeks_to_show).sort_values('week_start')
-        
+
+        # Ensure nt_hours column exists (for backwards compatibility)
+        if 'nt_hours' not in weekly_display.columns:
+            weekly_display['nt_hours'] = 0.0
+        # Fill any NaN values with 0
+        weekly_display['nt_hours'] = weekly_display['nt_hours'].fillna(0)
+
         # Create labels with week numbers
         weekly_display['week_label'] = weekly_display.apply(
-            lambda row: f"Week {int(row['week_number'])}<br>{row['week_start'].strftime('%b %d')}", 
+            lambda row: f"Week {int(row['week_number'])}<br>{row['week_start'].strftime('%b %d')}",
             axis=1
         )
-        
+
         fig = go.Figure()
-        
+
         fig.add_trace(go.Bar(
             name='Coding Time',
             x=weekly_display['week_label'],
@@ -828,7 +855,7 @@ def main():
             text=weekly_display['ct_hours'].round(1),
             textposition='inside'
         ))
-        
+
         fig.add_trace(go.Bar(
             name='Video Time',
             x=weekly_display['week_label'],
@@ -837,7 +864,18 @@ def main():
             text=weekly_display['vt_hours'].round(1),
             textposition='inside'
         ))
-        
+
+        # Add NT bar only if there's any NT data
+        if weekly_display['nt_hours'].sum() > 0:
+            fig.add_trace(go.Bar(
+                name='Networking Time',
+                x=weekly_display['week_label'],
+                y=weekly_display['nt_hours'],
+                marker_color='#10b981',
+                text=weekly_display['nt_hours'].round(1),
+                textposition='inside'
+            ))
+
         # Add target line at 70% CT
         fig.add_hline(
             y=weekly_display['total_hours'].mean() * 0.7,
@@ -846,16 +884,16 @@ def main():
             annotation_text="70% CT Target",
             annotation_position="right"
         )
-        
+
         fig.update_layout(
             barmode='stack',
-            title="Weekly Time Distribution (CT: Coding Time, VT: Video Time)",
+            title="Weekly Time Distribution (CT: Coding, VT: Video, NT: Networking)",
             xaxis_title="Week",
             yaxis_title="Hours",
             height=400,
             hovermode='x unified'
         )
-        
+
         st.plotly_chart(fig, use_container_width=True)
         
         # Show CT:VT ratio trend
@@ -1961,6 +1999,11 @@ def load_weekly_summary():
         SUM(CASE WHEN time_type = 'VT' THEN hours ELSE 0 END) as vt_hours,
         SUM(CASE WHEN time_type IN ('CT', 'VT') THEN hours ELSE 0 END) as total_hours,
         ROUND(
+            SUM(CASE WHEN time_type = 'NT' THEN hours ELSE 0 END) /
+            NULLIF(SUM(CASE WHEN time_type IN ('CT', 'VT', 'NT') THEN hours ELSE 0 END), 0) * 100,
+            1
+        ) AS nt_percentage
+        ROUND(
             SUM(CASE WHEN time_type = 'CT' THEN hours ELSE 0 END) / 
             NULLIF(SUM(CASE WHEN time_type IN ('CT', 'VT') THEN hours ELSE 0 END), 0) * 100, 
             1
@@ -1970,15 +2013,24 @@ def load_weekly_summary():
             NULLIF(SUM(CASE WHEN time_type IN ('CT', 'VT') THEN hours ELSE 0 END), 0) * 100, 
             1
         ) as vt_percentage,
-        CONCAT(
-            ROUND(SUM(CASE WHEN time_type = 'CT' THEN hours ELSE 0 END) / 
-                  NULLIF(SUM(CASE WHEN time_type IN ('CT', 'VT') THEN hours ELSE 0 END), 0) * 100), 
-            ':', 
-            ROUND(SUM(CASE WHEN time_type = 'VT' THEN hours ELSE 0 END) / 
-                  NULLIF(SUM(CASE WHEN time_type IN ('CT', 'VT') THEN hours ELSE 0 END), 0) * 100)
-        ) as ct_vt_ratio
+        CASE 
+            WHEN SUM(CASE WHEN time_type IN ('CT', 'VT') THEN hours ELSE 0 END) = 0 
+                THEN 'N/A'
+            ELSE CONCAT(
+                ROUND(
+                    SUM(CASE WHEN time_type = 'CT' THEN hours ELSE 0 END) /
+                    SUM(CASE WHEN time_type IN ('CT', 'VT') THEN hours ELSE 0 END) * 100
+                ),
+                ':',
+                ROUND(
+                    SUM(CASE WHEN time_type = 'VT' THEN hours ELSE 0 END) /
+                    SUM(CASE WHEN time_type IN ('CT', 'VT') THEN hours ELSE 0 END) * 100
+        )
+    )
+END AS ct_vt_ratio
+
     FROM harvest_time_tracking
-    WHERE time_type IN ('CT', 'VT')
+    WHERE time_type IN ('CT', 'VT', 'NT')
       AND week_start >= '2025-12-07'  -- Only show challenge weeks
     GROUP BY week_number, week_start
     ORDER BY week_start DESC

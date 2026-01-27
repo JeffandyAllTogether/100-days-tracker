@@ -92,6 +92,9 @@ def parse_harvest_csv(filepath):
         # Check for any BUILDING PROJECTS: Video task
         elif 'building projects: video' in task_lower:
             return 'VT'
+        # just added this to check for networking tasks
+        elif 'networking' in task_lower or task_lower.startswith('nt'):
+            return 'NT'
         else:
             return 'Other'
     
@@ -177,7 +180,9 @@ def parse_harvest_csv(filepath):
         """Categorize VT tasks by video activity type"""
         if pd.isna(task):
             return None
+        
         task_lower = task.lower()
+
         if 'filming' in task_lower:
             return 'Filming'
         elif 'script' in task_lower:
@@ -188,7 +193,30 @@ def parse_harvest_csv(filepath):
             return None
     
     df['VT_Category'] = df['Task'].apply(categorize_vt_task)
-    
+
+    # ============================================
+    # NT CATEGORIZATION
+    # ============================================
+
+
+
+    def categorize_nt_task(task):
+        if pd.isna(task):
+            return None
+
+        task_lower = task.lower()
+
+        if 'messaging' in task_lower or 'linkedin' in task_lower:
+            return 'digital'
+        elif 'informational' in task_lower or 'chat' in task_lower:
+            return '1on1'
+        else:
+            return 'Pre_Classification'
+
+
+    df['NT_Category'] = df['Task'].apply(categorize_nt_task)
+
+
     # ============================================
     # EXTRACT DAY NUMBER FROM VT NOTES
     # ============================================
@@ -226,6 +254,7 @@ def parse_harvest_csv(filepath):
     print(f"\n✅ Transformation complete:")
     print(f"   - CT entries: {len(df[df['Time_Type'] == 'CT'])}")
     print(f"   - VT entries: {len(df[df['Time_Type'] == 'VT'])}")
+    print(f"   - NT entries: {len(df[df['Time_Type'] == 'NT'])}")
     print(f"   - Other entries: {len(df[df['Time_Type'] == 'Other'])}")
     
     return df
@@ -237,34 +266,54 @@ def parse_harvest_csv(filepath):
 
 def generate_weekly_summary(df):
     """
-    Generate weekly summary statistics with CT:VT ratios
+    Generate weekly summary statistics with CT:VT:NT ratios
     """
     print("\n📈 Generating weekly summary...")
-    
-    # Filter to only include CT and VT (exclude 'Other')
-    df_filtered = df[df['Time_Type'].isin(['CT', 'VT'])].copy()
-    
+
+    # Filter to include CT, VT, and NT (exclude 'Other')
+    df_filtered = df[df['Time_Type'].isin(['CT', 'VT', 'NT'])].copy()
+
     # Group by week and time type
     weekly = df_filtered.groupby(['Week_Start', 'Time_Type']).agg({
         'Hours': 'sum'
     }).reset_index()
-    
-    # Pivot to get CT and VT as columns
+
+    # Pivot to get CT, VT, and NT as columns
     weekly_pivot = weekly.pivot(index='Week_Start', columns='Time_Type', values='Hours').fillna(0)
-    
+
+    # Ensure all columns exist (in case NT has no data)
+    for col in ['CT', 'VT', 'NT']:
+        if col not in weekly_pivot.columns:
+            weekly_pivot[col] = 0.0
+
     # Calculate total and ratios
-    weekly_pivot['Total_Hours'] = weekly_pivot.sum(axis=1)
-    
-    if 'CT' in weekly_pivot.columns and 'VT' in weekly_pivot.columns:
-        weekly_pivot['CT_Percentage'] = (weekly_pivot['CT'] / weekly_pivot['Total_Hours'] * 100).round(1)
-        weekly_pivot['VT_Percentage'] = (weekly_pivot['VT'] / weekly_pivot['Total_Hours'] * 100).round(1)
-        weekly_pivot['CT_VT_Ratio'] = (weekly_pivot['CT_Percentage'].astype(int).astype(str) + ':' + 
-                                        weekly_pivot['VT_Percentage'].astype(int).astype(str))
-    
+    weekly_pivot['Total_Hours'] = weekly_pivot[['CT', 'VT', 'NT']].sum(axis=1)
+
+    # Calculate percentages safely (handle zero total)
+    weekly_pivot['CT_Percentage'] = weekly_pivot.apply(
+        lambda row: round(row['CT'] / row['Total_Hours'] * 100, 1) if row['Total_Hours'] > 0 else 0.0, axis=1
+    )
+    weekly_pivot['VT_Percentage'] = weekly_pivot.apply(
+        lambda row: round(row['VT'] / row['Total_Hours'] * 100, 1) if row['Total_Hours'] > 0 else 0.0, axis=1
+    )
+    weekly_pivot['NT_Percentage'] = weekly_pivot.apply(
+        lambda row: round(row['NT'] / row['Total_Hours'] * 100, 1) if row['Total_Hours'] > 0 else 0.0, axis=1
+    )
+
+    # Create CT:VT ratio (original format for backwards compatibility)
+    weekly_pivot['CT_VT_Ratio'] = weekly_pivot.apply(
+        lambda row: f"{int(row['CT_Percentage'])}:{int(row['VT_Percentage'])}" if row['Total_Hours'] > 0 else 'N/A', axis=1
+    )
+
+    # Create CT:VT:NT ratio
+    weekly_pivot['CT_VT_NT_Ratio'] = weekly_pivot.apply(
+        lambda row: f"{int(row['CT_Percentage'])}:{int(row['VT_Percentage'])}:{int(row['NT_Percentage'])}" if row['Total_Hours'] > 0 else 'N/A', axis=1
+    )
+
     # Reset index to make Week_Start a column
     weekly_pivot = weekly_pivot.reset_index()
     weekly_pivot['Week_Start'] = weekly_pivot['Week_Start'].dt.date
-    
+
     return weekly_pivot
 
 
@@ -424,9 +473,9 @@ def load_to_postgres(df, conn, truncate=False):
     
     # Prepare data for insertion
     df_subset = df[[
-        'Date', 'Week_Start', 'Week_Number', 'Year', 'Month', 
+        'Date', 'Week_Start', 'Week_Number', 'Year', 'Month',
         'Day_of_Week', 'Task', 'Notes_Clean', 'Hours',
-        'Time_Type', 'CT_Category', 'VT_Category', 'CT_Type', 'Day_Number'
+        'Time_Type', 'CT_Category', 'VT_Category', 'NT_Category', 'CT_Type', 'Day_Number'
     ]].copy()
     
     # Convert Period to string for Month column
@@ -468,15 +517,16 @@ def load_to_postgres(df, conn, truncate=False):
     
     # Insert query with ON CONFLICT to handle duplicates
     insert_query = """
-    INSERT INTO harvest_time_tracking 
-    (date, week_start, week_number, year, month, day_of_week, 
-     task, notes, hours, time_type, ct_category, vt_category, ct_type, day_number)
+    INSERT INTO harvest_time_tracking
+    (date, week_start, week_number, year, month, day_of_week,
+     task, notes, hours, time_type, ct_category, vt_category, nt_category, ct_type, day_number)
     VALUES %s
     ON CONFLICT (date, task, notes) DO UPDATE SET
         hours = EXCLUDED.hours,
         time_type = EXCLUDED.time_type,
         ct_category = EXCLUDED.ct_category,
         vt_category = EXCLUDED.vt_category,
+        nt_category = EXCLUDED.nt_category,
         ct_type = EXCLUDED.ct_type,
         day_number = EXCLUDED.day_number
     """
