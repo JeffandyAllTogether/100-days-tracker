@@ -2,7 +2,7 @@
 
 Real-time ETL pipeline and dashboard tracking my journey to become a hireable Data Engineer.
 
-[![Streamlit App](https://100daytracker.streamlit.app/)
+https://100daytracker.streamlit.app/
 
 ## Live Dashboard
 
