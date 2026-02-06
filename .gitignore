@@ -5,8 +5,9 @@
 *.key
 
 # Data files
-*.csv
-harvest_time_report.csv
+*2026*.csv
+Supabase Snippet Harvest Time Tracking.csv
+
 outputs/
 
 # Python
