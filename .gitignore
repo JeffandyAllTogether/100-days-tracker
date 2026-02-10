@@ -48,3 +48,4 @@ streamlit_app_old.py
 # Keep your main app files tracked
 !streamlit_app.py
 !harvest_etl.py
+.DS_Store
